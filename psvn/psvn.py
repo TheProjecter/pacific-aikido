@@ -5,19 +5,45 @@
 import commands
 import os
 import sys
+import textwrap
 
 class SVNHelper(object):
   """Class implementing svn helper methods."""
 
-  # Commands that this class knows how to do and the methods to call to do them.
-  COMMANDS = {'diffstats': 'DiffStats'}
+  # Commands that this class knows how to process.  Format:
+  # 'command_name': (CmdMethod, UsageMsg)
+  # where CmdMethod is the name of the method to call to execute the command
+  # and UsageMsg is a string containing the subcommand's usage message.
+  COMMANDS = {
+      'diffstats': (
+          'DiffStats',
+          textwrap.dedent("""
+              %(command)s: Generate statistics about a diff.
+              usage: %(command)s [FLAGS]
+
+              Valid options:
+                As per 'svn diff'.
+              """)
+      ),
+      'help': (
+          'Help',
+          textwrap.dedent("""
+              %(command)s: Print usage messages.
+              usage: %(command)s [SUBCOMMAND...]
+          """)
+      ),
+  }
+
+  def DeletegateToSVN(self, argv):
+    """Pass command through to svn."""
+    argv.insert(0, 'svn')
+    os.execvp('svn', argv)
 
   def Process(self, argv):
     """Process a command line."""
     if argv[0] in self.COMMANDS:
-      return self.__getattribute__(self.COMMANDS[argv[0]])(argv[1:])
-    argv.insert(0, 'svn')
-    os.execvp('svn', argv)
+      return self.__getattribute__(self.COMMANDS[argv[0]][0])(argv[1:])
+    self.DeletegateToSVN(argv)
 
   def DiffStats(self, argv):
     """Generate some stats about the current diff target."""
@@ -64,6 +90,24 @@ class SVNHelper(object):
         self.all_stats['files'], self.all_stats['changed'],
         self.all_stats['added'], self.all_stats['removed'])
     return (0, output)
+
+  def Help(self, argv):
+    """Print usage messages."""
+    output = ''
+    if not argv:
+      output = textwrap.dedent("""
+          usage: %s <subcommand> [options] [args]
+          (Type 'svn help" for help on svn native commands.)
+
+          Available subcommands:
+          """ % (sys.argv[0],))
+      output += ''.join(['   %s\n' % c for c in sorted(self.COMMANDS.keys())])
+    elif argv[0] in self.COMMANDS:
+      output = self.COMMANDS[argv[0]][1] % {'command': argv[0]}
+    else:
+      argv.insert(0, 'help')
+      self.DeletegateToSVN(argv)
+    return (0, output.lstrip('\n'))
 
 
 def main(argv):
