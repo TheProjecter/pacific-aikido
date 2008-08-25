@@ -87,7 +87,8 @@ class SVNHelperTest(unittest.TestCase):
 
     self.Mock(psvn.commands, 'getstatusoutput', MockDiff)
     (status, output) = self._helper.Process(['diffstats'])
-    self.assertEqual(output, 'files: 1; lines: changed 1, added 1, removed 1')
+    self.assertEqual(output,
+                     'files: 1; 3 delta lines: changed 1, added 1, removed 1')
     self.assertEqual(status, self.status)
     self.assertTrue(self.mock_diff_was_called)
 
