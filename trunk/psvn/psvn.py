@@ -86,9 +86,12 @@ class SVNHelper(object):
       elif self.inside_block:
         ProcessBlock()
 
-    output = "files: %d; lines: changed %d, added %d, removed %d" % (
-        self.all_stats['files'], self.all_stats['changed'],
-        self.all_stats['added'], self.all_stats['removed'])
+    files = self.all_stats['files']
+    changed = self.all_stats['changed']
+    added = self.all_stats['added']
+    removed = self.all_stats['removed']
+    output = "files: %d; %d delta lines: changed %d, added %d, removed %d" % (
+        files, (changed + added + removed), changed, added, removed)
     return (0, output)
 
   def Help(self, argv):
