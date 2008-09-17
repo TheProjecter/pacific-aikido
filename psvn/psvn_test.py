@@ -32,8 +32,10 @@ class SVNHelperTest(unittest.TestCase):
     execvp method was called.
     """
     self.mock_execvp_was_called = False
+    self.command_to_exec = None
 
     def MockExecvp(cmd, args):
+      self.command_to_exec = (cmd, args)
       self.assertEqual(cmd, 'svn')
       self.mock_execvp_was_called = True
 
@@ -110,6 +112,50 @@ class SVNHelperTest(unittest.TestCase):
       TestHelp([subcmd])
     # Verify that nothing was passed through to svn.
     self.assertFalse(self.mock_execvp_was_called)
+
+  def testRollback(self):
+    """Rollback should work."""
+    for flag in ('-c', '-r'):
+      # non-numeric argument
+      code, err = self._helper.Process(['rollback', flag, 'foo'])
+      self.assertNotEqual(code, 0)
+      self.assertEqual(err, 'Must specify a numeric argument for %s' % flag)
+      # negative argument
+      code, err = self._helper.Process(['rollback', flag, '-100'])
+      self.assertNotEqual(code, 0)
+      self.assertEqual(
+          err, 'Must specify a positive numeric argument for %s' % flag)
+    # require either -c or -r
+    code, err = self._helper.Process(['rollback'])
+    self.assertNotEqual(code, 0)
+    self.assertEqual(err, 'Must specify -c or -r')
+
+    # unrecognized options or options missing their arguments should explode.
+    for flag in ('-c', '-r', '-d'):
+      code, err = self._helper.Process(['rollback', flag])
+      self.assertNotEqual(code, 0)
+      self.assertTrue(
+          err.startswith('Bad argument:'),
+          'Expected to start with "Bad argument:", but got "%s"' % err)
+
+    # extra argument
+    code, err = self._helper.Process(['rollback', '-c', '100', 'filename'])
+    self.assertNotEqual(code, 0)
+    self.assertEqual(err, 'Extra arguments to rollback: filename')
+
+    self.MockOutExecvp()
+
+    ret = self._helper.Process(['rollback', '-c', '100'])
+    self.assertFalse(
+        ret, 'Unexpectedly got return value %r from Process' % (ret,))
+    self.assertEqual(self.command_to_exec[1],
+                     ['svn', 'merge', '-r', '100:99', '.'])
+
+    ret = self._helper.Process(['rollback', '-r', '100'])
+    self.assertFalse(
+        ret, 'Unexpectedly got return value %r from Process' % (ret,))
+    self.assertEqual(self.command_to_exec[1],
+                     ['svn', 'merge', '-r', 'HEAD:99', '.'])
 
 
 if __name__ == '__main__':

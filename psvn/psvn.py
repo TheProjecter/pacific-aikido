@@ -3,9 +3,19 @@
 """Helper script for extending subversion functionality."""
 
 import commands
+import getopt
 import os
 import sys
 import textwrap
+
+
+class Error(Exception):
+  """Top-level exception class."""
+
+
+class UnrecognizedOption(Error):
+  """A subcommand saw an option it did not know how to handle."""
+
 
 class SVNHelper(object):
   """Class implementing svn helper methods."""
@@ -21,17 +31,25 @@ class SVNHelper(object):
               %(command)s: Generate statistics about a diff.
               usage: %(command)s [FLAGS]
 
-              Valid options:
+              Options:
                 As per 'svn diff'.
-              """)
-      ),
+              """)),
       'help': (
           'Help',
           textwrap.dedent("""
               %(command)s: Print usage messages.
               usage: %(command)s [SUBCOMMAND...]
-          """)
-      ),
+              """)),
+      'rollback': (
+          'Rollback',
+          textwrap.dedent("""
+              %(command)s: Roll back a change.
+              usage: %(command)s (-c <change>|-r <rev>)
+
+              Options:
+                -c <change>  Roll back a single change.
+                -r <rev>     Roll back from HEAD to a given revision.
+              """)),
   }
 
   def DeletegateToSVN(self, argv):
@@ -111,6 +129,41 @@ class SVNHelper(object):
       argv.insert(0, 'help')
       self.DeletegateToSVN(argv)
     return (0, output.lstrip('\n'))
+
+  def Rollback(self, argv):
+    """Roll back a change."""
+    revisions = None
+
+    try:
+      opts, args = getopt.getopt(argv, 'c:r:')
+    except getopt.GetoptError, e:
+      return (1, 'Bad argument: %s' % e)
+
+    if args:
+      return (1, 'Extra arguments to rollback: %s' % ' '.join(args))
+
+    for opt, arg in opts:
+      if opt == '-c' or opt == '-r':
+        try:
+          rollback_rev = int(arg)
+        except ValueError:
+          return (1, 'Must specify a numeric argument for %s' % opt)
+        if rollback_rev < 0:
+          return (1, 'Must specify a positive numeric argument for %s' % opt)
+        if opt == '-c':
+          revisions =  (rollback_rev, rollback_rev - 1)
+        else:
+          revisions =  ('HEAD', rollback_rev - 1)
+
+      else:
+        # This should never happen; it is a mismatch between the option list
+        # passed to getopt and the option list handled in this for loop.
+        raise UnrecognizedOption(opt)
+
+    if revisions is None:
+      return (1, 'Must specify -c or -r')
+
+    self.DeletegateToSVN(['merge', '-r', '%s:%i' % revisions, '.'])
 
 
 def main(argv):
